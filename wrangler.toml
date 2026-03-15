@@ -1,0 +1,11 @@
+name = "discord-issue-bot"
+main = "src/index.ts"
+compatibility_date = "2026-03-14"
+
+[observability]
+enabled = true
+
+[vars]
+GITHUB_OWNER = "virtue-initiative"
+GITHUB_REPO = "virtue-initiative"
+
