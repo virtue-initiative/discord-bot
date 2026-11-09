@@ -6,7 +6,23 @@ interface Env {
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
   GITHUB_API_BASE?: string;
+  DISCORD_BOT_TOKEN: string;
+  DISCORD_ALERTS_CHANNEL_ID: string;
+  CLOUDFLARE_WEBHOOK_SECRET: string;
 }
+
+type CloudflareAlert = {
+  name?: string;
+  text?: string;
+  data?: Record<string, unknown>;
+  ts?: number;
+  account_id?: string;
+  policy_id?: string;
+  policy_name?: string;
+  alert_type?: string;
+  alert_correlation_id?: string;
+  alert_event?: string;
+};
 
 type DiscordCommandOption = {
   name: string;
@@ -50,6 +66,10 @@ const COMMAND_CREATE = "issue-create";
 const COMMAND_SEARCH = "issue-search";
 const COMMAND_LABEL = "issue-label";
 
+const CLOUDFLARE_ALERTS_PATH = "/cloudflare-alerts";
+const DISCORD_API_BASE = "https://discord.com/api/v10";
+const DISCORD_MESSAGE_MAX_LENGTH = 2000;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "GET") {
@@ -58,6 +78,10 @@ export default {
 
     if (request.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405 });
+    }
+
+    if (new URL(request.url).pathname === CLOUDFLARE_ALERTS_PATH) {
+      return handleCloudflareAlert(request, env);
     }
 
     const signature = request.headers.get("X-Signature-Ed25519");
@@ -132,6 +156,83 @@ function hexToUint8Array(hex: string): Uint8Array {
     bytes[i / 2] = value;
   }
   return bytes;
+}
+
+async function handleCloudflareAlert(request: Request, env: Env): Promise<Response> {
+  const providedSecret = request.headers.get("cf-webhook-auth");
+  if (!providedSecret || !(await secretsMatch(providedSecret, env.CLOUDFLARE_WEBHOOK_SECRET))) {
+    return new Response("Invalid webhook secret", { status: 401 });
+  }
+
+  let alert: CloudflareAlert;
+  try {
+    alert = (await request.json()) as CloudflareAlert;
+  } catch {
+    return new Response("Invalid JSON body", { status: 400 });
+  }
+
+  await postDiscordChannelMessage(env, env.DISCORD_ALERTS_CHANNEL_ID, formatCloudflareAlert(alert));
+  return new Response("OK", { status: 200 });
+}
+
+async function secretsMatch(a: string, b: string): Promise<boolean> {
+  if (!b) {
+    return false;
+  }
+  // Hash first so timingSafeEqual gets equal-length inputs.
+  const encoder = new TextEncoder();
+  const [hashA, hashB] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b))
+  ]);
+  return crypto.subtle.timingSafeEqual(hashA, hashB);
+}
+
+function formatCloudflareAlert(alert: CloudflareAlert): string {
+  const resolved = alert.alert_event === "ALERT_STATE_EVENT_END";
+  const title = alert.name ?? alert.policy_name ?? "Cloudflare notification";
+  const lines = [`${resolved ? "✅" : "🚨"} **${title}**${resolved ? " (resolved)" : ""}`];
+
+  if (alert.text) {
+    lines.push(alert.text);
+  }
+
+  const details: string[] = [];
+  if (alert.alert_type) {
+    details.push(`Type: \`${alert.alert_type}\``);
+  }
+  if (typeof alert.ts === "number") {
+    details.push(`<t:${alert.ts}:f>`);
+  }
+  if (details.length > 0) {
+    lines.push(details.join(" · "));
+  }
+
+  const dashboardLink = alert.data?.dashboard_link;
+  if (typeof dashboardLink === "string" && dashboardLink.startsWith("https://")) {
+    lines.push(suppressEmbedUrl(dashboardLink));
+  }
+
+  const content = lines.join("\n");
+  return content.length > DISCORD_MESSAGE_MAX_LENGTH
+    ? `${content.slice(0, DISCORD_MESSAGE_MAX_LENGTH - 1)}…`
+    : content;
+}
+
+async function postDiscordChannelMessage(env: Env, channelId: string, content: string): Promise<void> {
+  const response = await fetch(`${DISCORD_API_BASE}/channels/${encodeURIComponent(channelId)}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } })
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Discord API error ${response.status}: ${body}`);
+  }
 }
 
 function getOption(interaction: DiscordInteraction, name: string): string | number | boolean | undefined {

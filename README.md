@@ -144,6 +144,27 @@ Modes:
 - `set`: replace all labels with provided list
 - `remove`: remove provided labels
 
+## Cloudflare alerts
+
+The worker also accepts Cloudflare notification webhooks at `POST /cloudflare-alerts` and posts each alert to the Discord channel set by `DISCORD_ALERTS_CHANNEL_ID` in `wrangler.toml` (#developers-only by default).
+
+1. Set the secrets:
+
+   ```bash
+   npx wrangler secret put DISCORD_BOT_TOKEN
+   npx wrangler secret put CLOUDFLARE_WEBHOOK_SECRET
+   ```
+
+   `CLOUDFLARE_WEBHOOK_SECRET` is any random string, for example from `openssl rand -hex 32`.
+2. Make sure the bot is in the server and can **View Channel** and **Send Messages** in the alerts channel.
+3. In the Cloudflare dashboard, go to **Notifications → Destinations → Webhooks → Create**:
+   - URL: `https://discord-issue-bot.<your-subdomain>.workers.dev/cloudflare-alerts`
+   - Secret: the same value as `CLOUDFLARE_WEBHOOK_SECRET`
+   - Select **Save and Test**. A test message should appear in the channel.
+4. Add the webhook as a destination on each notification you want forwarded.
+
+Requests without a matching `cf-webhook-auth` header are rejected.
+
 ## Local development
 
 ```bash

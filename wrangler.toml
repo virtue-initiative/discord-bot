@@ -8,4 +8,6 @@ enabled = true
 [vars]
 GITHUB_OWNER = "virtue-initiative"
 GITHUB_REPO = "virtue-initiative"
+# #developers-only
+DISCORD_ALERTS_CHANNEL_ID = "1486056921059299518"
 
