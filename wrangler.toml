@@ -1,6 +1,12 @@
 name = "discord-issue-bot"
 main = "src/index.ts"
 compatibility_date = "2026-03-14"
+# help@virtueinitiative.org's account
+account_id = "5bf62eb0ef0229b690dfeb2513b5bd54"
+
+routes = [
+  { pattern = "discord.virtueinitiative.org", custom_domain = true }
+]
 
 [observability]
 enabled = true

@@ -67,9 +67,7 @@ npx wrangler secret put GITHUB_API_BASE
 npm run deploy
 ```
 
-Copy the deployed worker URL, for example:
-
-`https://discord-issue-bot.<your-subdomain>.workers.dev`
+The worker is served at `https://discord.virtueinitiative.org` (the custom domain in `wrangler.toml`).
 
 ## 5) Point Discord interactions to the worker
 
@@ -158,7 +156,7 @@ The worker also accepts Cloudflare notification webhooks at `POST /cloudflare-al
    `CLOUDFLARE_WEBHOOK_SECRET` is any random string, for example from `openssl rand -hex 32`.
 2. Make sure the bot is in the server and can **View Channel** and **Send Messages** in the alerts channel.
 3. In the Cloudflare dashboard, go to **Notifications → Destinations → Webhooks → Create**:
-   - URL: `https://discord-issue-bot.<your-subdomain>.workers.dev/cloudflare-alerts`
+   - URL: `https://discord.virtueinitiative.org/cloudflare-alerts`
    - Secret: the same value as `CLOUDFLARE_WEBHOOK_SECRET`
    - Select **Save and Test**. A test message should appear in the channel.
 4. Add the webhook as a destination on each notification you want forwarded.
